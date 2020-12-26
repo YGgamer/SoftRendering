@@ -76,7 +76,71 @@ void blitClipped(int x, int y, int width, int height, UINT32* imgbuffer, UINT32*
 
 void drawLine_bresenham(int x0, int y0, int x1, int y1, UINT32* framebuffer)
 {
+	int dx, dy, dx2, dy2, x_inc, y_inc, error, index;
+	framebuffer += (x0 + y0 * WINDOW_WIDTH);
+	
+	dx = x1 - x0;
+	dy = y1 - y0;
 
+	if (dx >= 0)
+	{
+		x_inc = 1;
+	}
+	else
+	{
+		x_inc = -1;
+		dx = -dx;
+	}
+
+	if (dy >= 0)
+	{
+		y_inc = WINDOW_WIDTH;
+	}
+	else
+	{
+		y_inc = -WINDOW_WIDTH;
+		dy = -dy;
+	}
+
+	dx2 = dx << 1;
+	dy2 = dy << 1;
+
+	if (dx > dy)
+	{
+		error = dy2 - dx;
+
+		for (int i = 0; i <= dx; i++)
+		{
+			*framebuffer = RGBA32BIT8888(255, 0, 0, 0);
+
+			if (error >= 0)
+			{
+				error -= dx2;
+				framebuffer += y_inc;
+			}
+
+			error += dy2;
+			framebuffer += x_inc;
+		}
+	}
+	else
+	{
+		error = dx2 - dy;
+
+		for (int i = 0; i <= dy; i++)
+		{
+			*framebuffer = RGBA32BIT8888(255, 0, 0, 0);
+
+			if (error >= 0)
+			{
+				error -= dy2;
+				framebuffer += x_inc;
+			}
+
+			error += dx2;
+			framebuffer += y_inc;
+		}
+	}
 }
 
 void clearBuffer(UINT32* framebuffer)
@@ -124,6 +188,8 @@ int main()
 		}
 	}
 	blitClipped(-30, -70, imgWidth, imgHeight, imgbuffer, (UINT32*)framebuffer);
+
+	drawLine_bresenham(100, 100, 300, 300, (UINT32*)framebuffer);
 	
 	//start to render
 	int num_frames = 0;
