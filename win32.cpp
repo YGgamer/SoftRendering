@@ -197,9 +197,9 @@ bool MyWindow::destroy()
 void MyWindow::display()
 {
 	HDC hDC = GetDC(this->h_window);
-	TextOut(this->mem_dc, 20, 20,
+	/*TextOut(this->mem_dc, 20, 20,
 		"Control:hold left buttion to rotate, right button to pan",
-		strlen("Control:hold left buttion to rotate, right button to pan"));
+		strlen("Control:hold left buttion to rotate, right button to pan"));*/
 	//目标矩形的左上角(x,y), 宽度，高度，上下文指针
 	BitBlt(hDC, 0, 0, this->width, this->height, this->mem_dc, 0, 0, SRCCOPY);
 	ReleaseDC(this->h_window, hDC);
