@@ -21,12 +21,18 @@
     <ClCompile Include="win32.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="model.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="win32.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="myMath.h">
+    <ClInclude Include="model.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="geometry.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

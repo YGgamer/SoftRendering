@@ -1,6 +1,7 @@
 #include<iostream>
 #include"win32.h"
-#include"myMath.h"
+#include"geometry.h"
+#include"model.h"
 #include <assert.h>
 #include <algorithm>
 
@@ -16,8 +17,6 @@ const UINT BPP = 32; //bit-per-pixel
 //异步获取按键状态
 #define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
 #define KEY_UP(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 0 : 1)
-
-int swap1, swap2, total1, total2, draw1, draw2;
 
 inline void drawPoint(int x, int y, UINT32 color, UINT32* framebuffer = (UINT32*)window->window_fb)
 {
@@ -215,7 +214,7 @@ inline void drawLine(Vec2i p0, Vec2i p1, UINT32 color, UINT32* framebuffer = (UI
 		}
 	}*/
 
-	//version 5, 去除浮点数
+	//version 5, 去除浮点数，乘以 2dx
 	bool steep = false;
 	if (std::abs(p0.x - p1.x) < std::abs(p0.y - p1.y)) {
 		std::swap(p0.x, p0.y);
@@ -235,7 +234,7 @@ inline void drawLine(Vec2i p0, Vec2i p1, UINT32 color, UINT32* framebuffer = (UI
 	int dx2 = dx << 1;
 	for (int x = p0.x; x <= p1.x; x++) {
 		if (steep) {
-			//drawPoint(y, x, color);
+			//drawPoint(y, x, color);//不调用drawPoint函数而直接写代码的原因是，debug模式下inline关键字没有生效，导致帧率太低
 			if (y >= 0 && y < WINDOW_WIDTH && x >= 0 && x < WINDOW_HEIGHT)
 			{
 				framebuffer[y + x * WINDOW_WIDTH] = color;
@@ -256,130 +255,65 @@ inline void drawLine(Vec2i p0, Vec2i p1, UINT32 color, UINT32* framebuffer = (UI
 	}
 }
 
-void getNum(Vec2i p0, Vec2i p1, float& slope, float& b)
-{
-	if (p1.x != p0.x) {
-		slope = (p1.y - p0.y) / (float)(p1.x - p0.x);
-		b = p0.y - slope * p0.x;
-	}
-}
-
 bool compare(Vec2i a, Vec2i b)
-{
-	return a.x < b.x;   //升序排列，如果改为return a>b，则为降序
-
-}
-
-bool compare2(Vec2i a, Vec2i b)
 {
 	return a.y < b.y;   //升序排列，如果改为return a>b，则为降序
 
 }
 
-void drawTriangle(Vec2i p0, Vec2i p1, Vec2i p2, UINT32 color, UINT32* framebuffer = (UINT32*)window->window_fb)
+inline float getDelta(Vec2i p0, Vec2i p1)
 {
-	//从左到右排序
-	Vec2i array[3] = {p0, p1, p2};
-	std::sort(array, array + 3, compare);
-
-	//先计算斜率和截距以确定直线方程
-	float slope1, slope2, slope3, b1, b2, b3;
-	getNum(array[0], array[1], slope1, b1);
-	getNum(array[1], array[2], slope2, b2);
-	getNum(array[2], array[0], slope3, b3);
-	
-	//画左侧
-	for (int x = array[0].x; x < array[1].x; x++)
-	{
-		int y0 = slope1 * x + b1;
-		int y1 = slope3 * x + b3;
-		if (y0 > y1) {
-			std::swap(y0, y1);
-			swap1++;
-		}
-		for (int y = y0; y <= y1; y++) {
-			if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT)
-			{
-				framebuffer[x + y * WINDOW_WIDTH] = color;
-				draw1++;
-			}
-		}
-		total1++;
+	if (p1.y != p0.y) {
+		return (p1.x - p0.x) / (float)(p1.y - p0.y);
 	}
-	//画右侧（含中间线段）
-	for (int x = array[1].x; x <= array[2].x; x++)
-	{
-		int y0 = slope2 * x + b2;
-		int y1 = slope3 * x + b3;
-		if (y0 > y1) {
-			std::swap(y0, y1);
-			swap1++;
-		}
-		for (int y = y0; y <= y1; y++) {
-			if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT)
-			{
-				framebuffer[x + y * WINDOW_WIDTH] = color;
-				draw1++;
-			}
-		}
-		total1++;
-	}
+	return 0.0;
 }
 
-void drawTriangle2(Vec2i p0, Vec2i p1, Vec2i p2, UINT32 color, UINT32* framebuffer = (UINT32*)window->window_fb)
+void drawTriangle(Vec2i p0, Vec2i p1, Vec2i p2, UINT32 color, UINT32* framebuffer = (UINT32*)window->window_fb)
 {
 	//从上到下排序
 	Vec2i array[3] = { p0, p1, p2 };
-	std::sort(array, array + 3, compare2);
+	std::sort(array, array + 3, compare);
 	
-	//计算 delatas x/ deltas y 的值，即斜率分之一（y每变化1 x的变化量）
-	float dxy1 = (array[1].x - array[0].x) / (float)(array[1].y - array[0].y);
-	float dxy2 = (array[2].x - array[1].x) / (float)(array[2].y - array[1].y);
-	float dxy3 = (array[0].x - array[2].x) / (float)(array[0].y - array[2].y);
-
-	//画上方
-	float tempX1 = array[0].x;
+	//计算 delta x/ delta y 的值，即斜率分之一（y每变化1 x的变化量）
+	//也可以用斜率和截距算，但是循环里就多了一次乘法
+	float dxy1 = getDelta(array[0], array[1]);
+	float dxy2 = getDelta(array[1], array[2]);
+	float dxy3 = getDelta(array[2], array[0]);
+	
+	//注意是排好序后才计算delta的，所以下面确定初始点的逻辑才成立
+	//如果上方不是平底则肯定是第一个点，是的话为第二个点(是平底的话直接会走下半部分的绘制，delta是根据第二个点和第三个点计算的)
+	float tempX1 = array[0].y == array[1].y ? array[1].x : array[0].x;
+	//这里肯定是第一个点，因为delta是根据第一个点和第三个点计算的
 	float tempX2 = array[0].x;
-	for (int y = array[0].y; y < array[1].y; y++)
+	for (int y = array[0].y; y < array[2].y; y++)
 	{
-		int x0 = tempX1;
-		int x1 = tempX2;
+		//这里加0.5更合理，过半要画在下一个点上
+		int x0 = tempX1 + 0.5;
+		int x1 = tempX2 + 0.5;
 		if (x0 > x1) {
 			std::swap(x0, x1);
-			swap2++;
 		}
 		for (int x = x0; x <= x1; x++) {
 			if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT)
 			{
 				framebuffer[x + y * WINDOW_WIDTH] = color;
-				draw1++;
 			}
 		}
-		tempX1 += dxy1;
+		//过分界线后线段变化，更正斜率
+		tempX1 += (y >= array[1].y ? dxy2 : dxy1);
 		tempX2 += dxy3;
-		total2++;
 	}
-	//画下方（含中间线段）
-	tempX1 = array[1].x;
-	//tempX2 = array[2].x;//同一条直线，可以继续接着上方的运算
-	for (int y = array[1].y; y <= array[2].y; y++)
+}
+
+void flip_y(int width = WINDOW_WIDTH, int height = WINDOW_HEIGHT, UINT32* framebuffer = (UINT32*)window->window_fb)
+{
+	for (int y = 0; y < WINDOW_HEIGHT / 2; y++)
 	{
-		int x0 = tempX1;
-		int x1 = tempX2;
-		if (x0 > x1) {
-			std::swap(x0, x1);
-			swap2++;
+		for (int x = 0; x < WINDOW_WIDTH; x++)
+		{
+			std::swap(framebuffer[x + y * WINDOW_WIDTH], framebuffer[x + (WINDOW_HEIGHT - y - 1) * WINDOW_WIDTH]);
 		}
-		for (int x = x0; x <= x1; x++) {
-			if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT)
-			{
-				framebuffer[x + y * WINDOW_WIDTH] = color;
-				draw1++;
-			}
-		}
-		tempX1 += dxy2;
-		tempX2 += dxy3;
-		total2++;
 	}
 }
 
@@ -430,6 +364,19 @@ int main()
 	blitClipped(-30, -70, imgWidth, imgHeight, imgbuffer);*/
 
 	//drawLine_bresenham(vec2i(100, 100), vec2i(300, 300), RGBA32BIT8888(255, 0, 0, 0));
+
+	srand(time(NULL));
+	Model* model = new Model("obj/african_head.obj");
+	/*for (int i = 0; i < model->nfaces(); i++) {
+		std::vector<int> face = model->face(i);
+		Vec2i screen_coords[3];
+		for (int j = 0; j < 3; j++) {
+			Vec3f world_coords = model->vert(face[j]);
+			screen_coords[j] = Vec2i((world_coords.x + 1.) * WINDOW_WIDTH / 2., (world_coords.y + 1.) * WINDOW_HEIGHT / 2.);
+		}
+		drawTriangle(screen_coords[0], screen_coords[1], screen_coords[2], RGBA32BIT8888(rand() % 255, rand() % 255, rand() % 255, 0));
+	}
+	flip_y();*/
 	
 	//start to render
 	int num_frames = 0;
@@ -447,15 +394,18 @@ int main()
 			drawLine(pos[2], pos[3], RGBA32BIT8888(255, 255, 0, 0));
 			drawLine(pos[4], pos[5], RGBA32BIT8888(255, 255, 0, 0));
 		}*/
-
-		swap1 = swap2 = total1 = total2 = draw1 = draw2 = 0;
+		
 		Vec2i pos[3] = { Vec2i(10, 70), Vec2i(50, 160), Vec2i(70, 80) };
 		Vec2i pos1[3] = { Vec2i(180, 50), Vec2i(150, 1), Vec2i(70, 180) };
 		Vec2i pos2[3] = { Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180) };
+		Vec2i pos3[3] = { Vec2i(300, 300), Vec2i(720, 600), Vec2i(500, 300) };
+		Vec2i pos4[3] = { Vec2i(600, 300), Vec2i(500, 100), Vec2i(800, 300) };
 		for (int i = 0; i < 1000; i++) {
 			drawTriangle(pos[0], pos[1], pos[2], RGBA32BIT8888(255, 255, 0, 0));
 			drawTriangle(pos1[0], pos1[1], pos1[2], RGBA32BIT8888(255, 255, 255, 0));
 			drawTriangle(pos2[0], pos2[1], pos2[2], RGBA32BIT8888(255, 0, 0, 0));
+			drawTriangle(pos3[0], pos3[1], pos3[2], RGBA32BIT8888(0, 255, 0, 0));
+			drawTriangle(pos4[0], pos4[1], pos4[2], RGBA32BIT8888(0, 255, 0, 0));
 		}
 
 		//display image
@@ -467,12 +417,12 @@ int main()
 			int sum_millis = (int)((curr_time - print_time) * 1000);
 			int avg_millis = sum_millis / num_frames;
 			printf("fps: %3d, avg: %3d ms\n", num_frames, avg_millis);
-			printf("swap1: %3d, total1: %3d, draw1: %3d\n", swap1, total1, draw1);
-			printf("swap2: %3d, total2: %3d, draw1: %3d\n", swap2, total2, draw2);
 			num_frames = 0;
 			print_time = curr_time;
 		}
 	}
+
+	delete model;
 
 	//free memory
 	window->destroy();
